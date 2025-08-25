@@ -1,30 +1,43 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Heart, MapPin, Globe, Instagram, Twitter, Facebook, Share2 } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { Heart, MapPin, Globe, Instagram, Twitter, Facebook, Share2, Loader2 } from "lucide-react";
+import { useParams, Link } from "react-router-dom";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { useDonations } from "@/hooks/useDonations";
 
 const CreatorProfile = () => {
   const { username } = useParams();
+  const { profile, loading: profileLoading, error: profileError } = useUserProfile(username || '');
+  const { donations, loading: donationsLoading } = useDonations(profile?.id, 3);
 
-  // Mock creator data - in real app, this would come from API
-  const creator = {
-    username: username || "creator",
-    displayName: "Amazing Creator",
-    bio: "Content creator passionate about technology, photography, and sharing knowledge with the community. Building amazing digital experiences every day.",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-    location: "Dhaka, Bangladesh",
-    website: "https://example.com",
-    socialLinks: {
-      instagram: "@creator",
-      twitter: "@creator",
-      facebook: "creator"
-    },
-    totalSupported: 1250,
-    supporterCount: 89,
-    isActive: true,
-    categories: ["Technology", "Photography", "Education"]
-  };
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading profile...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileError || !profile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold">Creator not found</h1>
+          <p className="text-muted-foreground">The creator @{username} doesn't exist or their account is inactive.</p>
+          <Button asChild>
+            <Link to="/">Go Home</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const isActive = profile.subscription_status === 'active';
+  const donorCount = donations.length; // This is simplified - in real app would be separate query
 
   return (
     <div className="min-h-screen bg-background">
@@ -56,44 +69,30 @@ const CreatorProfile = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-6">
                   <div className="relative">
                     <img 
-                      src={creator.avatar} 
-                      alt={creator.displayName}
+                      src={profile.profile_image_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"} 
+                      alt={profile.display_name}
                       className="w-24 h-24 rounded-full object-cover border-4 border-primary/20"
                     />
-                    {creator.isActive && (
+                    {isActive && (
                       <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-background"></div>
                     )}
                   </div>
                   
                   <div className="flex-1 space-y-3">
                     <div>
-                      <h1 className="text-2xl font-bold text-foreground">{creator.displayName}</h1>
-                      <p className="text-muted-foreground">@{creator.username}</p>
+                      <h1 className="text-2xl font-bold text-foreground">{profile.display_name}</h1>
+                      <p className="text-muted-foreground">@{profile.username}</p>
                     </div>
                     
-                    <div className="flex flex-wrap gap-2">
-                      {creator.categories.map((category) => (
-                        <Badge key={category} variant="secondary">
-                          {category}
-                        </Badge>
-                      ))}
-                    </div>
+                    {!isActive && (
+                      <Badge variant="destructive">Account Inactive</Badge>
+                    )}
                     
                     <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                      {creator.location && (
-                        <div className="flex items-center space-x-1">
-                          <MapPin className="w-4 h-4" />
-                          <span>{creator.location}</span>
-                        </div>
-                      )}
-                      {creator.website && (
-                        <div className="flex items-center space-x-1">
-                          <Globe className="w-4 h-4" />
-                          <a href={creator.website} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
-                            Website
-                          </a>
-                        </div>
-                      )}
+                      <div className="flex items-center space-x-1">
+                        <MapPin className="w-4 h-4" />
+                        <span>Dhaka, Bangladesh</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -106,45 +105,24 @@ const CreatorProfile = () => {
                 <CardTitle>About</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground leading-relaxed">{creator.bio}</p>
+                <p className="text-muted-foreground leading-relaxed">
+                  {profile.bio || "This creator hasn't added a bio yet."}
+                </p>
               </CardContent>
             </Card>
 
-            {/* Social Links */}
-            <Card className="border-border/50">
-              <CardHeader>
-                <CardTitle>Connect</CardTitle>
-                <CardDescription>Follow on social media</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-4">
-                  {creator.socialLinks.instagram && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={`https://instagram.com/${creator.socialLinks.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer">
-                        <Instagram className="w-4 h-4" />
-                        Instagram
-                      </a>
-                    </Button>
-                  )}
-                  {creator.socialLinks.twitter && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={`https://twitter.com/${creator.socialLinks.twitter.replace('@', '')}`} target="_blank" rel="noopener noreferrer">
-                        <Twitter className="w-4 h-4" />
-                        Twitter
-                      </a>
-                    </Button>
-                  )}
-                  {creator.socialLinks.facebook && (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={`https://facebook.com/${creator.socialLinks.facebook}`} target="_blank" rel="noopener noreferrer">
-                        <Facebook className="w-4 h-4" />
-                        Facebook
-                      </a>
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {!isActive && (
+              <Card className="border-destructive/50 bg-destructive/5">
+                <CardContent className="p-6">
+                  <div className="text-center space-y-2">
+                    <h3 className="font-semibold text-destructive">Account Inactive</h3>
+                    <p className="text-sm text-muted-foreground">
+                      This creator's subscription has expired. They need to renew their subscription to receive donations.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Tip Section */}
@@ -154,7 +132,7 @@ const CreatorProfile = () => {
               <CardHeader className="text-center">
                 <CardTitle className="flex items-center justify-center space-x-2">
                   <Heart className="w-5 h-5 text-primary" />
-                  <span>Support {creator.displayName}</span>
+                  <span>Support {profile.display_name}</span>
                 </CardTitle>
                 <CardDescription>
                   Show your appreciation with a tip
@@ -162,15 +140,29 @@ const CreatorProfile = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-center space-y-2">
-                  <div className="text-2xl font-bold text-foreground">৳{creator.totalSupported.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground">raised from {creator.supporterCount} supporters</div>
+                  <div className="text-2xl font-bold text-foreground">৳{profile.current_amount.toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground">raised from {donorCount} supporters</div>
+                  {profile.goal_amount > 0 && (
+                    <div className="w-full bg-secondary rounded-full h-2">
+                      <div 
+                        className="bg-gradient-orange h-2 rounded-full" 
+                        style={{ width: `${Math.min((Number(profile.current_amount) / Number(profile.goal_amount)) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                  )}
                 </div>
                 
-                <Button variant="tip" size="lg" className="w-full" asChild>
-                  <a href={`/d/${creator.username}`}>
+                <Button 
+                  variant="tip" 
+                  size="lg" 
+                  className="w-full" 
+                  asChild
+                  disabled={!isActive}
+                >
+                  <Link to={isActive ? `/d/${profile.username}` : '#'}>
                     <Heart className="w-5 h-5" />
-                    Send a Tip
-                  </a>
+                    {isActive ? 'Send a Tip' : 'Account Inactive'}
+                  </Link>
                 </Button>
                 
                 <div className="text-xs text-center text-muted-foreground">
@@ -187,10 +179,17 @@ const CreatorProfile = () => {
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
                   {[50, 100, 200, 500].map((amount) => (
-                    <Button key={amount} variant="outline" size="sm" asChild className="hover:bg-primary hover:text-primary-foreground transition-all">
-                      <a href={`/d/${creator.username}?amount=${amount}`}>
+                    <Button 
+                      key={amount} 
+                      variant="outline" 
+                      size="sm" 
+                      asChild 
+                      className="hover:bg-primary hover:text-primary-foreground transition-all"
+                      disabled={!isActive}
+                    >
+                      <Link to={isActive ? `/d/${profile.username}?amount=${amount}` : '#'}>
                         ৳{amount}
-                      </a>
+                      </Link>
                     </Button>
                   ))}
                 </div>
@@ -203,21 +202,29 @@ const CreatorProfile = () => {
                 <CardTitle className="text-lg">Recent Supporters</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { name: "Anonymous", amount: 100, time: "2 hours ago" },
-                    { name: "Ahmed Hassan", amount: 250, time: "1 day ago" },
-                    { name: "Fatima Khan", amount: 50, time: "3 days ago" },
-                  ].map((supporter, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <div>
-                        <div className="font-medium text-foreground">{supporter.name}</div>
-                        <div className="text-muted-foreground">{supporter.time}</div>
+                {donationsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  </div>
+                ) : donations.length > 0 ? (
+                  <div className="space-y-3">
+                    {donations.map((donation) => (
+                      <div key={donation.id} className="flex items-center justify-between text-sm">
+                        <div>
+                          <div className="font-medium text-foreground">
+                            {donation.is_anonymous ? "Anonymous" : (donation.donor_name || "Anonymous")}
+                          </div>
+                          <div className="text-muted-foreground">
+                            {new Date(donation.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="font-bold text-primary">৳{donation.amount}</div>
                       </div>
-                      <div className="font-bold text-primary">৳{supporter.amount}</div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">No supporters yet</p>
+                )}
               </CardContent>
             </Card>
           </div>

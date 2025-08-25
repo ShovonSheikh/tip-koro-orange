@@ -5,12 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Heart, ArrowLeft, DollarSign, CreditCard, Smartphone } from "lucide-react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Heart, ArrowLeft, DollarSign, CreditCard, Smartphone, Loader2 } from "lucide-react";
+import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 const DonationPage = () => {
   const { username } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const prefilledAmount = searchParams.get('amount');
   
   const [amount, setAmount] = useState(prefilledAmount || '');
@@ -18,14 +22,52 @@ const DonationPage = () => {
   const [donorEmail, setDonorEmail] = useState('');
   const [message, setMessage] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock creator data
-  const creator = {
-    username: username || "creator",
-    displayName: "Amazing Creator",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-    isActive: true
-  };
+  const { profile, loading: profileLoading, error: profileError } = useUserProfile(username || '');
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading creator profile...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (profileError || !profile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold">Creator not found</h1>
+          <p className="text-muted-foreground">The creator @{username} doesn't exist.</p>
+          <Button asChild>
+            <Link to="/">Go Home</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const isActive = profile.subscription_status === 'active';
+
+  if (!isActive) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h1 className="text-2xl font-bold">Account Inactive</h1>
+          <p className="text-muted-foreground">
+            This creator's subscription has expired. They cannot receive donations until they renew their subscription.
+          </p>
+          <Button asChild>
+            <Link to={`/u/${profile.username}`}>View Profile</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const quickAmounts = [50, 100, 200, 500, 1000];
 
@@ -33,22 +75,53 @@ const DonationPage = () => {
     setAmount(selectedAmount.toString());
   };
 
-  const handleDonate = () => {
+  const handleDonate = async () => {
     if (!amount || parseInt(amount) < 10) {
-      alert('Minimum donation amount is ৳10');
+      toast({
+        title: "Invalid amount",
+        description: "Minimum donation amount is ৳10",
+        variant: "destructive",
+      });
       return;
     }
-    
-    // In a real app, this would integrate with RupantorPay
-    console.log('Processing donation:', {
-      creator: creator.username,
-      amount: parseInt(amount),
-      donorName: isAnonymous ? null : donorName,
-      donorEmail: isAnonymous ? null : donorEmail,
-      message
-    });
-    
-    alert('This would redirect to RupantorPay for payment processing!');
+
+    setIsSubmitting(true);
+
+    try {
+      // Insert donation record
+      const { error } = await supabase
+        .from('donations')
+        .insert({
+          creator_id: profile.id,
+          amount: parseInt(amount),
+          donor_name: isAnonymous ? null : donorName || null,
+          donor_email: isAnonymous ? null : donorEmail || null,
+          message: message || null,
+          is_anonymous: isAnonymous,
+          payment_status: 'pending'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Donation submitted!",
+        description: "Your donation is being processed. This is a demo - no actual payment was made.",
+      });
+
+      // In real app, this would redirect to payment gateway
+      setTimeout(() => {
+        navigate(`/u/${profile.username}`);
+      }, 2000);
+
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -58,10 +131,10 @@ const DonationPage = () => {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Button variant="ghost" size="sm" asChild>
-              <a href={`/u/${creator.username}`}>
+              <Link to={`/u/${profile.username}`}>
                 <ArrowLeft className="w-4 h-4" />
                 Back to Profile
-              </a>
+              </Link>
             </Button>
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-orange rounded-lg flex items-center justify-center">
@@ -81,17 +154,17 @@ const DonationPage = () => {
               <div className="flex items-center space-x-4">
                 <div className="relative">
                   <img 
-                    src={creator.avatar} 
-                    alt={creator.displayName}
+                    src={profile.profile_image_url || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"} 
+                    alt={profile.display_name}
                     className="w-16 h-16 rounded-full object-cover border-2 border-primary/20"
                   />
-                  {creator.isActive && (
+                  {isActive && (
                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-background"></div>
                   )}
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-foreground">{creator.displayName}</h1>
-                  <p className="text-muted-foreground">@{creator.username}</p>
+                  <h1 className="text-xl font-bold text-foreground">{profile.display_name}</h1>
+                  <p className="text-muted-foreground">@{profile.username}</p>
                   <Badge variant="secondary" className="mt-1">Active Creator</Badge>
                 </div>
               </div>
@@ -103,7 +176,7 @@ const DonationPage = () => {
             <CardHeader className="text-center">
               <CardTitle className="flex items-center justify-center space-x-2">
                 <Heart className="w-6 h-6 text-primary" />
-                <span>Support {creator.displayName}</span>
+                <span>Support {profile.display_name}</span>
               </CardTitle>
               <CardDescription>
                 Show your appreciation with a tip (minimum ৳10)
@@ -206,10 +279,19 @@ const DonationPage = () => {
                   size="lg" 
                   className="w-full text-lg h-14"
                   onClick={handleDonate}
-                  disabled={!amount || parseInt(amount) < 10}
+                  disabled={!amount || parseInt(amount) < 10 || isSubmitting}
                 >
-                  <CreditCard className="w-5 h-5" />
-                  Pay ৳{amount ? parseInt(amount).toLocaleString() : '0'} via RupantorPay
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="w-5 h-5" />
+                      Pay ৳{amount ? parseInt(amount).toLocaleString() : '0'} via RupantorPay
+                    </>
+                  )}
                 </Button>
                 
                 <div className="text-center space-y-2">
@@ -228,7 +310,7 @@ const DonationPage = () => {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Secure payment processing • SSL encrypted • 100% safe
+                    Demo mode: No actual payment will be processed • Secure payment processing • SSL encrypted
                   </p>
                 </div>
               </div>
@@ -243,7 +325,7 @@ const DonationPage = () => {
                 <div className="text-sm space-y-1">
                   <p className="font-medium text-foreground">How TipKoro Works</p>
                   <p className="text-muted-foreground">
-                    Your tip goes directly to {creator.displayName}. They can withdraw earnings anytime or receive automatic monthly payouts.
+                    Your tip goes directly to {profile.display_name}. They can withdraw earnings anytime or receive automatic monthly payouts.
                   </p>
                 </div>
               </div>

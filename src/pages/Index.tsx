@@ -1,9 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart, Zap, Shield, DollarSign, Users, Smartphone } from "lucide-react";
+import { Heart, Zap, Shield, DollarSign, Users, Smartphone, User, LogOut } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import heroImage from "@/assets/hero-image.jpg";
 
 const Index = () => {
+  const { user, signOut } = useAuth();
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -16,8 +19,27 @@ const Index = () => {
             <span className="text-xl font-bold text-foreground">TipKoro</span>
           </div>
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm">Login</Button>
-            <Button variant="hero" size="sm">Start Creating</Button>
+            {user ? (
+              <>
+                <div className="flex items-center space-x-2 text-sm">
+                  <User className="w-4 h-4" />
+                  <span>{user.email}</span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={signOut}>
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/auth">Sign In</Link>
+                </Button>
+                <Button variant="tip" size="sm" asChild>
+                  <Link to="/auth">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -38,13 +60,17 @@ const Index = () => {
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button variant="hero" size="lg" className="text-lg px-8">
-                  <Heart className="w-5 h-5" />
-                  Start Giving Tips
+                <Button size="lg" className="text-lg px-8" asChild>
+                  <Link to="/u/creator">
+                    <Heart className="w-5 h-5" />
+                    Support a Creator
+                  </Link>
                 </Button>
-                <Button variant="creator" size="lg" className="text-lg px-8">
-                  <Users className="w-5 h-5" />
-                  Become a Creator
+                <Button variant="outline" size="lg" className="text-lg px-8" asChild>
+                  <Link to={user ? "/dashboard" : "/auth"}>
+                    <Users className="w-5 h-5" />
+                    {user ? "My Dashboard" : "Become a Creator"}
+                  </Link>
                 </Button>
               </div>
               <div className="flex items-center space-x-8 text-sm text-muted-foreground">
