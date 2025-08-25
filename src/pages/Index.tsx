@@ -1,12 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart, Zap, Shield, DollarSign, Users, Smartphone, User, LogOut } from "lucide-react";
+import { Heart, Zap, Shield, DollarSign, Users, Smartphone } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { NavigationHeader } from "@/components/NavigationHeader";
 import heroImage from "@/assets/hero-image.jpg";
 
 const Index = () => {
-  const { user, signOut, loading } = useAuth();
+  const { user, loading } = useAuth();
   
   if (loading) {
     return (
@@ -20,40 +21,7 @@ const Index = () => {
   }
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-orange rounded-lg flex items-center justify-center">
-              <Heart className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-foreground">TipKoro</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            {user ? (
-              <>
-                <div className="flex items-center space-x-2 text-sm">
-                  <User className="w-4 h-4" />
-                  <span>{user.email}</span>
-                </div>
-                <Button variant="ghost" size="sm" onClick={signOut}>
-                  <LogOut className="w-4 h-4" />
-                  Sign Out
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/auth">Sign In</Link>
-                </Button>
-                <Button variant="tip" size="sm" asChild>
-                  <Link to="/auth">Get Started</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+      <NavigationHeader />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
@@ -78,9 +46,9 @@ const Index = () => {
                   </Link>
                 </Button>
                 <Button variant="outline" size="lg" className="text-lg px-8" asChild>
-                  <Link to={user ? "/dashboard" : "/auth"}>
+                  <Link to={user?.user_metadata?.username ? `/a/${user.user_metadata.username}` : "/auth"}>
                     <Users className="w-5 h-5" />
-                    {user ? "My Dashboard" : "Become a Creator"}
+                    {user?.user_metadata?.username ? "My Dashboard" : "Become a Creator"}
                   </Link>
                 </Button>
               </div>
@@ -91,7 +59,7 @@ const Index = () => {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Zap className="w-4 h-4 text-primary" />
-                  <span>Instant Transfer</span>
+                  <span>Weekly Transfers</span>
                 </div>
               </div>
             </div>
@@ -173,9 +141,9 @@ const Index = () => {
                 <div className="w-12 h-12 bg-accent rounded-lg flex items-center justify-center mb-4">
                   <Zap className="w-6 h-6 text-accent-foreground" />
                 </div>
-                <CardTitle>Instant Withdrawals</CardTitle>
+                <CardTitle>Weekly Withdrawals</CardTitle>
                 <CardDescription>
-                  Request withdrawals anytime or get automatic monthly payouts. Your earnings, your choice.
+                  Request withdrawals with 7-10 business day processing. Secure bank transfers for your earnings.
                 </CardDescription>
               </CardHeader>
             </Card>
