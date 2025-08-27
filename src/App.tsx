@@ -14,8 +14,6 @@ import CreatorProfileSettings from "./pages/CreatorProfileSettings";
 import CreatorDonations from "./pages/CreatorDonations";
 import CreatorSubscription from "./pages/CreatorSubscription";
 import CreatorWithdraw from "./pages/CreatorWithdraw";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentCancel from "./pages/PaymentCancel";
 
 const queryClient = new QueryClient();
 
@@ -36,8 +34,6 @@ const App = () => (
             <Route path="/a/:username/donations" element={<CreatorDonations />} />
             <Route path="/a/:username/subscription" element={<CreatorSubscription />} />
             <Route path="/a/:username/withdraw" element={<CreatorWithdraw />} />
-            <Route path="/payment-success" element={<PaymentSuccess />} />
-            <Route path="/payment-cancel" element={<PaymentCancel />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
