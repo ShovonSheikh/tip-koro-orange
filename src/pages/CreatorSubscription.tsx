@@ -1,6 +1,7 @@
 import { useParams, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { supabase } from "@/integrations/supabase/client";
 import { NavigationHeader } from "@/components/NavigationHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,9 +49,34 @@ const CreatorSubscription = () => {
     ? Math.ceil((expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
-  const handleSubscriptionAction = () => {
-    // In a real app, this would integrate with RupantorPay or other payment gateway
-    alert('Payment integration would be implemented here with RupantorPay or similar service');
+  const handleSubscriptionAction = async () => {
+    try {
+      // Initiate subscription payment with RupantorPay
+      const { data, error } = await supabase.functions.invoke('rupantorpay-initiate', {
+        body: {
+          amount: 100, // Monthly subscription cost in BDT
+          orderType: 'subscription',
+          creatorId: profile.id,
+          donorName: profile.display_name,
+          donorEmail: user?.email
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.success) {
+        // Redirect to RupantorPay payment page
+        window.location.href = data.paymentUrl;
+      } else {
+        throw new Error(data.error || 'Payment initiation failed');
+      }
+
+    } catch (error: any) {
+      console.error('Subscription payment error:', error);
+      alert(`Payment failed: ${error.message}`);
+    }
   };
 
   return (
