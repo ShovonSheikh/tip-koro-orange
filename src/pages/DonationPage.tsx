@@ -88,36 +88,38 @@ const DonationPage = () => {
     setIsSubmitting(true);
 
     try {
-      // Initiate payment with RupantorPay
-      const { data, error } = await supabase.functions.invoke('rupantorpay-initiate', {
-        body: {
+      // Insert donation record
+      const { error } = await supabase
+        .from('donations')
+        .insert({
+          creator_id: profile.id,
           amount: parseInt(amount),
-          orderType: 'donation',
-          creatorId: profile.id,
-          donorName: isAnonymous ? null : donorName || null,
-          donorEmail: isAnonymous ? null : donorEmail || null,
-          message: message || null
-        }
+          donor_name: isAnonymous ? null : donorName || null,
+          donor_email: isAnonymous ? null : donorEmail || null,
+          message: message || null,
+          is_anonymous: isAnonymous,
+          payment_status: 'pending'
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Donation submitted!",
+        description: "Your donation is being processed. This is a demo - no actual payment was made.",
       });
 
-      if (error) {
-        throw error;
-      }
-
-      if (data.success) {
-        // Redirect to RupantorPay payment page
-        window.location.href = data.paymentUrl;
-      } else {
-        throw new Error(data.error || 'Payment initiation failed');
-      }
+      // In real app, this would redirect to payment gateway
+      setTimeout(() => {
+        navigate(`/u/${profile.username}`);
+      }, 2000);
 
     } catch (error: any) {
-      console.error('Payment initiation error:', error);
       toast({
-        title: "Payment Failed",
-        description: error.message || "Failed to initiate payment. Please try again.",
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -307,9 +309,9 @@ const DonationPage = () => {
                       <span>Bank Card</span>
                     </div>
                   </div>
-                   <p className="text-xs text-muted-foreground">
-                     Secure payment processing via RupantorPay • SSL encrypted
-                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Demo mode: No actual payment will be processed • Secure payment processing • SSL encrypted
+                  </p>
                 </div>
               </div>
             </CardContent>
