@@ -13,6 +13,8 @@ interface UserProfile {
   subscription_status: string;
   subscription_expires_at?: string;
   created_at: string;
+  role?: string;
+  email?: string;
 }
 
 export const useUserProfile = (username: string) => {

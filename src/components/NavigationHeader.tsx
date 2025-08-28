@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 
 interface NavigationHeaderProps {
   showBreadcrumbs?: boolean;
@@ -23,9 +25,20 @@ export const NavigationHeader = ({ showBreadcrumbs, currentPage, creatorUsername
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [userUsername, setUserUsername] = useState<string>('');
   
-  // Get user profile to check if they're a creator
-  const { profile } = useUserProfile(user?.user_metadata?.username || '');
+  // Get user profile from database
+  const { profile } = useUserProfile(userUsername);
+
+  useEffect(() => {
+    const getUserUsername = async () => {
+      if (user) {
+        const { data } = await supabase.from('users').select('username').eq('id', user.id).single();
+        setUserUsername(data?.username || '');
+      }
+    };
+    getUserUsername();
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -74,7 +87,7 @@ export const NavigationHeader = ({ showBreadcrumbs, currentPage, creatorUsername
               {/* Creator Dashboard Link - only show if user is a creator and not already on dashboard */}
               {profile && !isCreatorDashboard && (
                 <Button variant="ghost" size="sm" asChild>
-                  <Link to={`/a/${user.user_metadata?.username}`}>
+                         <Link to={`/a/${userUsername}`}>
                     <BarChart3 className="w-4 h-4 mr-2" />
                     Dashboard
                   </Link>
@@ -110,31 +123,31 @@ export const NavigationHeader = ({ showBreadcrumbs, currentPage, creatorUsername
                   {profile && (
                     <>
                       <DropdownMenuItem asChild>
-                        <Link to={`/a/${user.user_metadata?.username}`}>
+                        <Link to={`/a/${userUsername}`}>
                           <BarChart3 className="mr-2 h-4 w-4" />
                           <span>Dashboard</span>
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link to={`/a/${user.user_metadata?.username}/profile`}>
+                        <Link to={`/a/${userUsername}/profile`}>
                           <Settings className="mr-2 h-4 w-4" />
                           <span>Profile Settings</span>
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link to={`/a/${user.user_metadata?.username}/donations`}>
+                        <Link to={`/a/${userUsername}/donations`}>
                           <CreditCard className="mr-2 h-4 w-4" />
                           <span>Donations</span>
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link to={`/a/${user.user_metadata?.username}/subscription`}>
+                        <Link to={`/a/${userUsername}/subscription`}>
                           <User className="mr-2 h-4 w-4" />
                           <span>Subscription</span>
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link to={`/a/${user.user_metadata?.username}/withdraw`}>
+                        <Link to={`/a/${userUsername}/withdraw`}>
                           <Banknote className="mr-2 h-4 w-4" />
                           <span>Withdraw</span>
                         </Link>
