@@ -30,6 +30,7 @@ const App = () => (
             <Route path="/u/:username" element={<CreatorProfile />} />
             <Route path="/d/:username" element={<DonationPage />} />
             <Route path="/a/:username" element={<Dashboard />} />
+            <Route path="/dashboard/:username" element={<Dashboard />} />
             <Route path="/a/:username/profile" element={<CreatorProfileSettings />} />
             <Route path="/a/:username/donations" element={<CreatorDonations />} />
             <Route path="/a/:username/subscription" element={<CreatorSubscription />} />

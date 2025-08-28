@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Ignore specific files
+todo.txt
+creator-activation-flow-architecture.md
+creator-activation-flow-prd.md

@@ -36,7 +36,7 @@ const Auth = () => {
           .single();
           
         if (userData?.username) {
-          navigate(`/a/${userData.username}`);
+          navigate(`/dashboard/${userData.username}`);
         } else {
           navigate('/');
         }
@@ -72,7 +72,7 @@ const Auth = () => {
         });
         
         if (userData?.username) {
-          navigate(`/a/${userData.username}`);
+          navigate(`/dashboard/${userData.username}`);
         } else {
           navigate('/');
         }

@@ -1,309 +1,235 @@
-Here is a detailed guide on how to add the payment gateway RupantorPay in this website. Whenever we need a payment gateway, please use this guide to implement RupantorPay as our payment gateway:
+The AI assistant should detect existing DB tables (`admin_users`, `users`, `subscriptions`, `donations`, `withdrawals`), map or extend their schemas as needed, wire server-side payment initiation, verification and webhook processing, and ensure the subscription lifecycle and accounting (balances/withdrawals) are consistent.
 
-## 1. Prerequisites & Setup
+---
 
-### Required Information:
-- **RupantorPay API Key**: `ecKCnXFx87Hp6qbZQuwrSJcBwj7rvTR5Cjb9TSwR5nohJ662Qu` (from our implementation)
-- **API Endpoints**:
-  - Payment Initiation: `https://payment.rupantorpay.com/api/payment/checkout`
-  - Payment Verification: `https://payment.rupantorpay.com/api/payment/verify-payment`
+# Architecture overview (conceptual)
 
-### Database Requirements:
-You'll need these database tables:
+* **Frontend:** pages for creator signup, subscribe, creator donation page, donor checkout, payment success/cancel pages.
+* **Backend / serverless functions:** three core responsibilities:
 
-#### Payments Table:
-```sql
-CREATE TABLE payments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID NOT NULL,
-  user_id UUID NOT NULL,
-  amount NUMERIC NOT NULL,
-  currency TEXT DEFAULT 'BDT',
-  payment_method TEXT NOT NULL,
-  gateway TEXT DEFAULT 'rupantorpay',
-  transaction_id TEXT,
-  gateway_transaction_id TEXT,
-  status TEXT DEFAULT 'pending',
-  gateway_response JSONB,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+  1. **Initiate**: create a payment record, prepare a transaction ID, call RupantorPay checkout and return payment URL.
+  2. **Verify**: on redirect success page, allow manual verification by querying the gateway server-side and marking records complete.
+  3. **Webhook**: receive asynchronous notifications from RupantorPay, verify authenticity, and idempotently update DB.
+* **Database (Supabase/Postgres):** store user, subscription, donation, payment and withdrawal records. Use triggers or scheduled jobs to maintain derived state (e.g., `users.subscription_status`).
+* **Monitoring & ops:** logging, retry handling, metrics, alerts on payment errors or webhook failures.
 
-#### Orders Table:
-```sql
-CREATE TABLE orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID,
-  order_number TEXT NOT NULL,
-  status TEXT DEFAULT 'pending',
-  subtotal NUMERIC NOT NULL,
-  tax_amount NUMERIC DEFAULT 0,
-  shipping_amount NUMERIC DEFAULT 0,
-  discount_amount NUMERIC DEFAULT 0,
-  total_amount NUMERIC NOT NULL,
-  currency TEXT DEFAULT 'BDT',
-  payment_status TEXT DEFAULT 'pending',
-  payment_method TEXT DEFAULT 'cash_on_delivery',
-  transaction_id TEXT,
-  gateway_response JSONB,
-  billing_address JSONB,
-  shipping_address JSONB,
-  coupon_code TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-```
+---
 
-## 2. Backend Implementation
+# What the AI assistant should look for in the DB
 
-### Step 1: Payment Initiation Endpoint
+For each known table, the assistant should:
 
-Create an API endpoint (e.g., `/api/rupantorpay/initiate`) that:
+* Identify current columns and types.
+* If required columns are missing, add them (or create a mapping).
+* If a conflicting naming convention exists, map logical names (e.g., `is_subscribed`, `subscription_active`, `sub_status` → unify to internal canonical names).
 
-```javascript
-// Expected Input:
-{
-  "orderId": "uuid",
-  "amount": 1000,  // Amount in BDT
-  "customerInfo": {
-    "firstName": "John",
-    "lastName": "Doe",
-    "email": "john@example.com"
-  }
-}
+**Suggested canonical columns (guide only — not implementation code):**
 
-// Core Logic:
-1. Generate unique transaction ID: `TXN_${orderId}_${Date.now()}`
-2. Create payment record in database with status 'pending'
-3. Call RupantorPay API with this payload:
-{
-  "success_url": "https://yoursite.com/payment-success?transaction_id=${transactionId}",
-  "cancel_url": "https://yoursite.com/payment-cancel",
-  "webhook_url": "https://yoursite.com/api/rupantorpay/webhook",
-  "fullname": "${firstName} ${lastName}",
-  "email": "customer@email.com",
-  "amount": "1000"
-}
+`users`
 
-// API Call:
-POST https://payment.rupantorpay.com/api/payment/checkout
-Headers:
-- accept: application/json
-- X-API-KEY: ecKCnXFx87Hp6qbZQuwrSJcBwj7rvTR5Cjb9TSwR5nohJ662Qu
-- content-type: application/json
+* `id` (primary)
+* `role` (e.g., `creator`, `donor`, `admin`)
+* `email`, `name`
+* `subscription_status` — logical flag: `active` / `inactive`
+* optional: `balance` (available for withdrawal)
 
-// Expected Response:
-{
-  "status": true,
-  "payment_url": "https://payment.rupantorpay.com/pay/xxxxx",
-  "message": "Payment URL generated successfully"
-}
-```
+`subscriptions`
 
-### Step 2: Webhook Handler
+* `id`
+* `creator_id` (references `users.id`)
+* `plan_amount` (numeric) — e.g., 100
+* `currency` (e.g., `BDT`)
+* `status` — `pending` / `completed` / `failed` / `cancelled` / `expired`
+* `transaction_id` — your internal txn id
+* `gateway_transaction_id` — gateway reference
+* `gateway_response` — JSON blob for audit
+* `start_date` / `end_date` / `next_billing_date` (timestamps)
 
-Create an endpoint `/api/rupantorpay/webhook` that:
+`donations`
 
-```javascript
-// RupantorPay will send POST request with:
-{
-  "transaction_id": "TXN_xxx_xxx",
-  "status": "completed|failed",
-  "amount": "1000"
-}
+* `id`
+* `donor_id` (nullable for anonymous)
+* `creator_id`
+* `amount`
+* `currency`
+* `status` — `pending` / `completed` / `failed`
+* `transaction_id`
+* `gateway_transaction_id`
+* `gateway_response`
+* `created_at`
 
-// Handler Logic:
-1. Receive webhook data
-2. Verify payment with RupantorPay API:
-   POST https://payment.rupantorpay.com/api/payment/verify-payment
-   Body: { "transaction_id": "received_transaction_id" }
+`withdrawals`
 
-3. Update payment record:
-   - If verification.status === true && verification.payment_status === 'completed':
-     - Set payment status to 'completed'
-   - Else:
-     - Set payment status to 'failed'
+* `id`
+* `creator_id`
+* `amount`
+* `status` — `requested` / `completed` / `rejected`
+* `processed_at`
+* `notes`
 
-4. Update order status:
-   - If payment completed: order.payment_status = 'paid'
-   - If payment failed: order.payment_status = 'failed'
+`payments` (optional unified payments table)
 
-5. Send confirmation email (optional)
-6. Return success response to RupantorPay
-```
+* `id`
+* `reference_type` — `donation` | `subscription` (or other)
+* `reference_id` — FK to the matching record
+* `transaction_id`, `amount`, `currency`, `status`, `gateway_response`
 
-### Step 3: Payment Verification Endpoint
+**Note to the assistant:** If a `payments` table exists or looks helpful for bookkeeping, use it; otherwise update the `donations`/`subscriptions` records directly and keep `gateway_response` for traceability.
 
-Create `/api/rupantorpay/verify` for manual verification:
+---
 
-```javascript
-// Input:
-{
-  "transaction_id": "TXN_xxx_xxx"
-}
+# Integration flows (behavioral guide)
 
-// Logic:
-1. Call RupantorPay verification API
-2. Update database records
-3. Return verification result to frontend
-```
+### 1) Subscription purchase (creator)
 
-## 3. Frontend Implementation
+* Creator initiates purchase from their account UI.
+* System creates a **subscription record** in DB with `status = pending` and a generated `transaction_id`.
+* System requests checkout from RupantorPay (server-side), passing return URLs and webhook URL.
+* User pays at gateway; gateway redirects back (success/cancel) with reference (or the frontend receives it).
+* On success page, the frontend calls a **server-side verify** endpoint (with the internal `transaction_id`). The endpoint calls the gateway verify API, confirms the external status, and:
 
-### Step 1: Payment Initiation
+  * If `completed`: set `subscriptions.status = completed`, set `subscriptions.start_date = now()`, `end_date = start_date + 1 month`, set `users.subscription_status = active`.
+  * If `failed` or `cancelled`: set `subscriptions.status` accordingly.
+* The webhook should perform the same verification and finalization automatically (see webhook guidance).
 
-```javascript
-// Function to initiate payment
-async function initiatePayment(orderData) {
-  const response = await fetch('/api/rupantorpay/initiate', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + userToken // if authentication required
-    },
-    body: JSON.stringify({
-      orderId: orderData.id,
-      amount: orderData.total,
-      customerInfo: {
-        firstName: orderData.customer.firstName,
-        lastName: orderData.customer.lastName,
-        email: orderData.customer.email
-      }
-    })
-  });
+**Key behavioral rules**
 
-  const result = await response.json();
+* Never mark a subscription active from frontend-only signals; always verify server-side with the gateway.
+* Make subscription activation idempotent: if the same transaction is processed twice, ignore the second.
 
-  if (result.success) {
-    // Redirect user to payment URL
-    window.location.href = result.paymentUrl;
-  } else {
-    // Handle error
-    alert('Payment initiation failed: ' + result.error);
-  }
-}
-```
+### 2) Donation (donor to creator)
 
-### Step 2: Success Page
+* Donor enters an amount on the creator’s donation page.
+* System creates a **donation record** with `status = pending`, `transaction_id`, and donor metadata.
+* Server-side obtains checkout URL from RupantorPay and returns it to frontend for redirect.
+* After redirect, the frontend hits server-side verify; server calls gateway verify and:
 
-Create `/payment-success` page:
+  * If `completed`: set donation `status = completed`; add the net amount (after platform fees) to creator’s ledger/balance; log transaction.
+  * If failed/cancelled: mark donation accordingly.
+* Webhook flow must reconcile and update donation status if it arrives.
 
-```javascript
-// URL will be: /payment-success?transaction_id=TXN_xxx_xxx
+---
 
-function PaymentSuccess() {
-  const [verificationStatus, setVerificationStatus] = useState('loading');
+# Webhook & verification guidance
 
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const transactionId = urlParams.get('transaction_id');
+* **Always verify webhooks.** If RupantorPay provides a signature header, validate it. If not, upon webhook receipt call the gateway’s verify API using the `transaction_id`.
+* **Idempotency:** maintain a processed-transactions table or mark records with `gateway_transaction_id`. If a webhook arrives for a `transaction_id` already processed, respond 200 and skip re-processing.
+* **Atomic updates:** when a webhook reports `completed`, update the payment record and any dependent state (user subscription, creator balance) in a single database transaction where possible (or in a single idempotent operation).
+* **Security:** accept webhooks only from known IPs and require a shared secret when available.
 
-    if (transactionId) {
-      verifyPayment(transactionId);
-    }
-  }, []);
+---
 
-  async function verifyPayment(transactionId) {
-    try {
-      const response = await fetch('/api/rupantorpay/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transaction_id: transactionId })
-      });
+# Subscription lifecycle & automation
 
-      const result = await response.json();
+* **Activation:** on `subscriptions.status = completed` set `users.subscription_status = active`.
+* **Expiration:** set `end_date` when subscription completes; run a daily job to expire subscriptions when `end_date < now()` — then mark `users.subscription_status = inactive`.
+* **Renewal options:** If you want recurring billing, check if RupantorPay supports recurring/subscription APIs. If not, implement manual renewal: notify creators before expiry and allow one-click renewal.
+* **Pending timeouts:** define a policy for how long `pending` payments remain valid (e.g., auto-cancel pending after X hours). The AI assistant should detect if an existing policy exists; otherwise it may create a configurable default.
 
-      if (result.success && result.payment_status === 'completed') {
-        setVerificationStatus('success');
-        // Show success message, order details, etc.
-      } else {
-        setVerificationStatus('failed');
-        // Show failure message
-      }
-    } catch (error) {
-      setVerificationStatus('error');
-    }
-  }
+---
 
-  // Render appropriate UI based on verificationStatus
-}
-```
+# Accounting & withdrawals
 
-### Step 3: Cancel Page
+* When donations complete, add the donation amount to a **creator ledger** or `balance` field (either in `users` or a separate `balances` ledger table). Keep full audit trail (do not modify historic donation rows).
+* Withdrawals should draw from available balance and create `withdrawals` records with status tracking.
+* Consider platform fees: if you take a percentage, calculate and store `gross_amount`, `fee`, `net_amount`.
 
-Create `/payment-cancel` page:
+---
 
-```javascript
-function PaymentCancel() {
-  return (
+# Security & compliance (guidelines)
 
-      Payment Cancelled
-      Your payment was cancelled. No charges have been made.
-       window.location.href = '/checkout'}>
-        Return to Checkout
+* **Never store card or sensitive payment details** on your servers. Only store gateway references and response JSON.
+* **API Keys:** store gateway keys in environment variables / secrets manager; do not embed in code.
+* **HTTPS:** all endpoints must be HTTPS. Webhooks must use HTTPS.
+* **Least privilege:** server endpoints that create/verify payments should require server-side authentication and appropriate authorization checks.
+* **PCI:** if you never store or process raw card data (offload to gateway), you minimize PCI scope. Still ensure your processes meet gateway and local compliance guidelines.
+* **Logging:** sanitize logs to avoid storing sensitive PII or card info.
 
-  );
-}
-```
+---
 
-## 4. Security Considerations
+# Failure modes & resilience
 
-### Essential Security Measures:
+The AI assistant should implement or ensure the following behaviors (conceptually):
 
-1. **Always verify payments server-side** using RupantorPay's verification API
-2. **Never trust frontend-only verification**
-3. **Validate webhook authenticity** (implement signature verification if available)
-4. **Use HTTPS for all endpoints**
-5. **Implement proper authentication** for payment initiation
-6. **Log all payment transactions** for audit purposes
-7. **Handle duplicate webhooks** (RupantorPay might send multiple times)
+* **Retries:** if a gateway call fails due to network, retry with exponential backoff but ensure idempotency (use transaction ids).
+* **Duplicate webhooks:** detect and ignore duplicates.
+* **Partial failures:** if DB update fails after gateway reports success, the system should re-run reconciliation (e.g., via a background job) and alert ops.
+* **Manual reconciliation:** provide an admin UI to re-run verify for disputed transactions.
+* **Timeouts:** if verification times out, mark record as `pending` and schedule re-check.
 
-### Error Handling:
+---
 
-```javascript
-// Common error scenarios to handle:
-1. Network timeouts during API calls
-2. Invalid transaction IDs
-3. Duplicate webhook processing
-4. Payment verification failures
-5. Database update failures
-6. Invalid customer data
-```
+# Observability & alerts (what to capture)
 
-## 5. Testing Process
+* Payment success rate (overall and per-creator).
+* Number of failed payments and common failure reasons.
+* Webhook delivery failures.
+* Unreconciled transactions older than N minutes/hours.
+* Large single donations or spikes (alert for fraud review).
+* Daily totals of donations and withdrawals.
 
-### Test Flow:
-1. Create test order with small amount (1 BDT)
-2. Initiate payment through your system
-3. Complete payment on RupantorPay test environment
-4. Verify webhook is received and processed
-5. Check database updates are correct
-6. Test payment verification endpoint
-7. Test all error scenarios
+---
 
-### Required Test Cases:
-- Successful payment flow
-- Payment cancellation
-- Payment failure
-- Network interruptions
-- Invalid transaction IDs
-- Webhook processing
-- Duplicate webhook handling
+# UX & communication (recommended guidance)
 
-## 6. Production Deployment
+* Show clear status to users: `Payment pending`, `Payment completed`, `Payment failed`.
+* For creators: show `subscription_expires_on` and notify before expiry.
+* For donors: show a receipt page and optionally send an email receipt (include donation id, date, amount, creator).
+* For failed payments: provide actionable messages (e.g., “Payment failed — try again or use another card”).
+* For anonymous donations: allow optional donor name/email for receipts.
 
-### Environment Variables Needed:
-```
-RUPANTORPAY_API_KEY=ecKCnXFx87Hp6qbZQuwrSJcBwj7rvTR5Cjb9TSwR5nohJ662Qu
-RUPANTORPAY_CHECKOUT_URL=https://payment.rupantorpay.com/api/payment/checkout
-RUPANTORPAY_VERIFY_URL=https://payment.rupantorpay.com/api/payment/verify-payment
-YOUR_DOMAIN=https://yourdomain.com
-```
+---
 
-### Monitoring & Logging:
-- Log all payment initiations
-- Log all webhook receptions
-- Log all verification attempts
-- Set up alerts for failed payments
-- Monitor webhook response times
+# Testing checklist (for the assistant to automatically validate)
+
+The assistant should run or prepare tests for:
+
+* Create subscription → checkout → gateway returns success → verify → `users.subscription_status = active`.
+* Create donation → checkout → verify → donation `status = completed` and creator balance increased.
+* Duplicate webhook received → ensure no double crediting.
+* Failed/cancelled checkout → appropriate `status` set, no balance change.
+* Manual verify endpoint works when redirect lacks full payload.
+* Expiration job sets `subscription_status = inactive` after `end_date`.
+* Admin reconciliation for mismatches.
+
+---
+
+# Decision heuristics for the AI assistant (how to auto-map & act)
+
+When inspecting source schema or code, the assistant should:
+
+1. **Detect tables**: If `subscriptions` or `donations` exist, prefer to extend them. If absent, create logical equivalents.
+2. **Map columns by semantics**: match columns by names (e.g., `status`, `txn_id`, `amount`) and types. If names differ, map using synonyms (`txn`, `transaction`, `payment_ref`, `gateway_id`).
+3. **Do not delete** existing fields unless clearly deprecated; prefer adding new canonical fields and maintain migration mapping.
+4. **Preserve history**: never overwrite historic payment records; use new columns for gateway responses and statuses.
+5. **Prefer configuration**: put gateway endpoint URLs, API keys, timeouts, and pending-time thresholds in a configuration store / env vars.
+6. **Non-breaking changes**: when adding triggers or scheduled jobs, ensure the assistant can run them conditionally (detect dev/test environment flag).
+
+---
+
+# Admin & operational features to provide (recommendation)
+
+* Admin dashboard to search transactions by `transaction_id`, gateway id, user, date range.
+* Manual verify / re-run verification for a transaction.
+* Export donations/payments for accounting.
+* Payout processing UI for withdrawals with audit trail.
+
+---
+
+# Privacy & data retention suggestions
+
+* Keep donation records for accounting and tax reasons; define retention for ancillary gateway response logs.
+* Mask donor PII in logs and provide a process for data deletion/ERASURE if requested (GDPR-style), but retain minimal necessary transaction metadata for accounting.
+
+---
+
+# Quick hand-off checklist for your AI assistant
+
+* [ ] Detect existing tables & map canonical columns.
+* [ ] Add or map necessary columns (transaction ids, gateway response, status, dates).
+* [ ] Implement server-side checkout initiation and verification behavior (no card data stored).
+* [ ] Implement webhook handling with idempotency and verification.
+* [ ] Ensure subscription activation and expiration lifecycle is enforced.
+* [ ] Add creator ledger/ balance updates and withdrawal flow.
+* [ ] Add monitoring, logs, and an admin reconciliation tool.
+* [ ] Create test cases and run reconciliation checks for mismatches.

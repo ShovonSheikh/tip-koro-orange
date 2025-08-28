@@ -38,17 +38,11 @@ const Index = () => {
                   TipKoro connects fans with creators in Bangladesh. Send tips, show appreciation, and help creators thrive in the digital economy.
                 </p>
               </div>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div>
                 <Button size="lg" className="text-lg px-8" asChild>
-                  <Link to="/u/creator">
-                    <Heart className="w-5 h-5" />
-                    Support a Creator
-                  </Link>
-                </Button>
-                <Button variant="outline" size="lg" className="text-lg px-8" asChild>
-                  <Link to={user?.user_metadata?.username ? `/a/${user.user_metadata.username}` : "/auth"}>
+                  <Link to="/auth">
                     <Users className="w-5 h-5" />
-                    {user?.user_metadata?.username ? "My Dashboard" : "Become a Creator"}
+                    Get Started
                   </Link>
                 </Button>
               </div>
