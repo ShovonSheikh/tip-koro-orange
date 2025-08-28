@@ -9,7 +9,7 @@ import Auth from "./pages/Auth";
 import CreatorProfile from "./pages/CreatorProfile";
 import DonationPage from "./pages/DonationPage";
 import NotFound from "./pages/NotFound";
-import CreatorDashboard from "./pages/CreatorDashboard";
+import Dashboard from "./pages/Dashboard";
 import CreatorProfileSettings from "./pages/CreatorProfileSettings";
 import CreatorDonations from "./pages/CreatorDonations";
 import CreatorSubscription from "./pages/CreatorSubscription";
@@ -29,7 +29,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/u/:username" element={<CreatorProfile />} />
             <Route path="/d/:username" element={<DonationPage />} />
-            <Route path="/a/:username" element={<CreatorDashboard />} />
+            <Route path="/a/:username" element={<Dashboard />} />
             <Route path="/a/:username/profile" element={<CreatorProfileSettings />} />
             <Route path="/a/:username/donations" element={<CreatorDonations />} />
             <Route path="/a/:username/subscription" element={<CreatorSubscription />} />

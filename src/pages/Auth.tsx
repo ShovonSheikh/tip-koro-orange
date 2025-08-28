@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,22 @@ const Auth = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      // Get user profile to redirect to dashboard
+      const getUserProfile = async () => {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+          
+        if (userData?.username) {
+          navigate(`/a/${userData.username}`);
+        } else {
+          navigate('/');
+        }
+      };
+      
+      getUserProfile();
     }
   }, [user, navigate]);
 
@@ -43,11 +59,23 @@ const Auth = () => {
           variant: "destructive",
         });
       } else {
+        // Get user profile to redirect to dashboard
+        const { data: userData } = await supabase
+          .from('users')
+          .select('username')
+          .eq('id', user?.id)
+          .single();
+          
         toast({
           title: "Welcome back!",
           description: "You've successfully logged in.",
         });
-        navigate('/');
+        
+        if (userData?.username) {
+          navigate(`/a/${userData.username}`);
+        } else {
+          navigate('/');
+        }
       }
     } catch (error) {
       toast({
