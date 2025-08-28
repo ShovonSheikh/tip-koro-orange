@@ -1,0 +1,309 @@
+Here is a detailed guide on how to add the payment gateway RupantorPay in this website. Whenever we need a payment gateway, please use this guide to implement RupantorPay as our payment gateway:
+
+## 1. Prerequisites & Setup
+
+### Required Information:
+- **RupantorPay API Key**: `ecKCnXFx87Hp6qbZQuwrSJcBwj7rvTR5Cjb9TSwR5nohJ662Qu` (from our implementation)
+- **API Endpoints**:
+  - Payment Initiation: `https://payment.rupantorpay.com/api/payment/checkout`
+  - Payment Verification: `https://payment.rupantorpay.com/api/payment/verify-payment`
+
+### Database Requirements:
+You'll need these database tables:
+
+#### Payments Table:
+```sql
+CREATE TABLE payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  amount NUMERIC NOT NULL,
+  currency TEXT DEFAULT 'BDT',
+  payment_method TEXT NOT NULL,
+  gateway TEXT DEFAULT 'rupantorpay',
+  transaction_id TEXT,
+  gateway_transaction_id TEXT,
+  status TEXT DEFAULT 'pending',
+  gateway_response JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+#### Orders Table:
+```sql
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID,
+  order_number TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  subtotal NUMERIC NOT NULL,
+  tax_amount NUMERIC DEFAULT 0,
+  shipping_amount NUMERIC DEFAULT 0,
+  discount_amount NUMERIC DEFAULT 0,
+  total_amount NUMERIC NOT NULL,
+  currency TEXT DEFAULT 'BDT',
+  payment_status TEXT DEFAULT 'pending',
+  payment_method TEXT DEFAULT 'cash_on_delivery',
+  transaction_id TEXT,
+  gateway_response JSONB,
+  billing_address JSONB,
+  shipping_address JSONB,
+  coupon_code TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## 2. Backend Implementation
+
+### Step 1: Payment Initiation Endpoint
+
+Create an API endpoint (e.g., `/api/rupantorpay/initiate`) that:
+
+```javascript
+// Expected Input:
+{
+  "orderId": "uuid",
+  "amount": 1000,  // Amount in BDT
+  "customerInfo": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john@example.com"
+  }
+}
+
+// Core Logic:
+1. Generate unique transaction ID: `TXN_${orderId}_${Date.now()}`
+2. Create payment record in database with status 'pending'
+3. Call RupantorPay API with this payload:
+{
+  "success_url": "https://yoursite.com/payment-success?transaction_id=${transactionId}",
+  "cancel_url": "https://yoursite.com/payment-cancel",
+  "webhook_url": "https://yoursite.com/api/rupantorpay/webhook",
+  "fullname": "${firstName} ${lastName}",
+  "email": "customer@email.com",
+  "amount": "1000"
+}
+
+// API Call:
+POST https://payment.rupantorpay.com/api/payment/checkout
+Headers:
+- accept: application/json
+- X-API-KEY: ecKCnXFx87Hp6qbZQuwrSJcBwj7rvTR5Cjb9TSwR5nohJ662Qu
+- content-type: application/json
+
+// Expected Response:
+{
+  "status": true,
+  "payment_url": "https://payment.rupantorpay.com/pay/xxxxx",
+  "message": "Payment URL generated successfully"
+}
+```
+
+### Step 2: Webhook Handler
+
+Create an endpoint `/api/rupantorpay/webhook` that:
+
+```javascript
+// RupantorPay will send POST request with:
+{
+  "transaction_id": "TXN_xxx_xxx",
+  "status": "completed|failed",
+  "amount": "1000"
+}
+
+// Handler Logic:
+1. Receive webhook data
+2. Verify payment with RupantorPay API:
+   POST https://payment.rupantorpay.com/api/payment/verify-payment
+   Body: { "transaction_id": "received_transaction_id" }
+
+3. Update payment record:
+   - If verification.status === true && verification.payment_status === 'completed':
+     - Set payment status to 'completed'
+   - Else:
+     - Set payment status to 'failed'
+
+4. Update order status:
+   - If payment completed: order.payment_status = 'paid'
+   - If payment failed: order.payment_status = 'failed'
+
+5. Send confirmation email (optional)
+6. Return success response to RupantorPay
+```
+
+### Step 3: Payment Verification Endpoint
+
+Create `/api/rupantorpay/verify` for manual verification:
+
+```javascript
+// Input:
+{
+  "transaction_id": "TXN_xxx_xxx"
+}
+
+// Logic:
+1. Call RupantorPay verification API
+2. Update database records
+3. Return verification result to frontend
+```
+
+## 3. Frontend Implementation
+
+### Step 1: Payment Initiation
+
+```javascript
+// Function to initiate payment
+async function initiatePayment(orderData) {
+  const response = await fetch('/api/rupantorpay/initiate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + userToken // if authentication required
+    },
+    body: JSON.stringify({
+      orderId: orderData.id,
+      amount: orderData.total,
+      customerInfo: {
+        firstName: orderData.customer.firstName,
+        lastName: orderData.customer.lastName,
+        email: orderData.customer.email
+      }
+    })
+  });
+
+  const result = await response.json();
+
+  if (result.success) {
+    // Redirect user to payment URL
+    window.location.href = result.paymentUrl;
+  } else {
+    // Handle error
+    alert('Payment initiation failed: ' + result.error);
+  }
+}
+```
+
+### Step 2: Success Page
+
+Create `/payment-success` page:
+
+```javascript
+// URL will be: /payment-success?transaction_id=TXN_xxx_xxx
+
+function PaymentSuccess() {
+  const [verificationStatus, setVerificationStatus] = useState('loading');
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const transactionId = urlParams.get('transaction_id');
+
+    if (transactionId) {
+      verifyPayment(transactionId);
+    }
+  }, []);
+
+  async function verifyPayment(transactionId) {
+    try {
+      const response = await fetch('/api/rupantorpay/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaction_id: transactionId })
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.payment_status === 'completed') {
+        setVerificationStatus('success');
+        // Show success message, order details, etc.
+      } else {
+        setVerificationStatus('failed');
+        // Show failure message
+      }
+    } catch (error) {
+      setVerificationStatus('error');
+    }
+  }
+
+  // Render appropriate UI based on verificationStatus
+}
+```
+
+### Step 3: Cancel Page
+
+Create `/payment-cancel` page:
+
+```javascript
+function PaymentCancel() {
+  return (
+
+      Payment Cancelled
+      Your payment was cancelled. No charges have been made.
+       window.location.href = '/checkout'}>
+        Return to Checkout
+
+  );
+}
+```
+
+## 4. Security Considerations
+
+### Essential Security Measures:
+
+1. **Always verify payments server-side** using RupantorPay's verification API
+2. **Never trust frontend-only verification**
+3. **Validate webhook authenticity** (implement signature verification if available)
+4. **Use HTTPS for all endpoints**
+5. **Implement proper authentication** for payment initiation
+6. **Log all payment transactions** for audit purposes
+7. **Handle duplicate webhooks** (RupantorPay might send multiple times)
+
+### Error Handling:
+
+```javascript
+// Common error scenarios to handle:
+1. Network timeouts during API calls
+2. Invalid transaction IDs
+3. Duplicate webhook processing
+4. Payment verification failures
+5. Database update failures
+6. Invalid customer data
+```
+
+## 5. Testing Process
+
+### Test Flow:
+1. Create test order with small amount (1 BDT)
+2. Initiate payment through your system
+3. Complete payment on RupantorPay test environment
+4. Verify webhook is received and processed
+5. Check database updates are correct
+6. Test payment verification endpoint
+7. Test all error scenarios
+
+### Required Test Cases:
+- Successful payment flow
+- Payment cancellation
+- Payment failure
+- Network interruptions
+- Invalid transaction IDs
+- Webhook processing
+- Duplicate webhook handling
+
+## 6. Production Deployment
+
+### Environment Variables Needed:
+```
+RUPANTORPAY_API_KEY=ecKCnXFx87Hp6qbZQuwrSJcBwj7rvTR5Cjb9TSwR5nohJ662Qu
+RUPANTORPAY_CHECKOUT_URL=https://payment.rupantorpay.com/api/payment/checkout
+RUPANTORPAY_VERIFY_URL=https://payment.rupantorpay.com/api/payment/verify-payment
+YOUR_DOMAIN=https://yourdomain.com
+```
+
+### Monitoring & Logging:
+- Log all payment initiations
+- Log all webhook receptions
+- Log all verification attempts
+- Set up alerts for failed payments
+- Monitor webhook response times
