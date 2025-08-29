@@ -85,38 +85,51 @@ const DonationPage = () => {
       return;
     }
 
+    if (!isAnonymous && !donorName.trim()) {
+      toast({
+        title: "Name required",
+        description: "Please enter your name or choose to donate anonymously",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Insert donation record
-      const { error } = await supabase
-        .from('donations')
-        .insert({
-          creator_id: profile.id,
+      // Call donation payment initiation edge function
+      const { data, error } = await supabase.functions.invoke('donation-payment-initiate', {
+        body: {
+          creatorId: profile.id,
           amount: parseInt(amount),
-          donor_name: isAnonymous ? null : donorName || null,
-          donor_email: isAnonymous ? null : donorEmail || null,
           message: message || null,
-          is_anonymous: isAnonymous,
-          payment_status: 'pending'
-        });
+          isAnonymous: isAnonymous,
+          donatorInfo: {
+            donorName: donorName,
+            donorEmail: donorEmail
+          }
+        }
+      });
 
       if (error) throw error;
 
-      toast({
-        title: "Donation submitted!",
-        description: "Your donation is being processed. This is a demo - no actual payment was made.",
-      });
-
-      // In real app, this would redirect to payment gateway
-      setTimeout(() => {
-        navigate(`/u/${profile.username}`);
-      }, 2000);
+      if (data.success) {
+        // Redirect to RupantorPay
+        window.open(data.paymentUrl, '_blank');
+        
+        toast({
+          title: "Redirecting to Payment",
+          description: "Please complete your payment in the new tab",
+        });
+      } else {
+        throw new Error(data.error || 'Payment initiation failed');
+      }
 
     } catch (error: any) {
+      console.error('Donation error:', error);
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Payment Failed",
+        description: error.message || "Failed to process donation. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -309,9 +322,9 @@ const DonationPage = () => {
                       <span>Bank Card</span>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Demo mode: No actual payment will be processed • Secure payment processing • SSL encrypted
-                  </p>
+                   <p className="text-xs text-muted-foreground">
+                     Secure payment processing via RupantorPay • SSL encrypted • Your payment will open in a new tab
+                   </p>
                 </div>
               </div>
             </CardContent>

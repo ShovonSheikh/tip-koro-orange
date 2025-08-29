@@ -1,1 +1,13 @@
 project_id = "hdqwngiztikxpwttdecz"
+
+[functions.subscription-payment-initiate]
+verify_jwt = true
+
+[functions.donation-payment-initiate]
+verify_jwt = false
+
+[functions.subscription-webhook]
+verify_jwt = false
+
+[functions.donation-webhook]
+verify_jwt = false

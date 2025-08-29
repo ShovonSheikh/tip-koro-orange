@@ -16,6 +16,7 @@ import {
   Shield,
   Users
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const CreatorSubscription = () => {
   const { username } = useParams<{ username: string }>();
@@ -48,9 +49,31 @@ const CreatorSubscription = () => {
     ? Math.ceil((expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
     : 0;
 
-  const handleSubscriptionAction = () => {
-    // In a real app, this would integrate with RupantorPay or other payment gateway
-    alert('Payment integration would be implemented here with RupantorPay or similar service');
+  const handleSubscriptionAction = async () => {
+    if (!profile) return;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('subscription-payment-initiate', {
+        body: {
+          creatorProfile: profile
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        // Redirect to RupantorPay
+        window.open(data.paymentUrl, '_blank');
+        
+        // You could add a toast here
+        console.log('Redirecting to payment...');
+      } else {
+        throw new Error(data.error || 'Payment initiation failed');
+      }
+    } catch (error: any) {
+      console.error('Subscription payment error:', error);
+      alert('Failed to initiate payment: ' + error.message);
+    }
   };
 
   return (

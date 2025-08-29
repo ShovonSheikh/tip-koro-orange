@@ -38,36 +38,60 @@ export type Database = {
           created_at: string | null
           creator_id: string
           donor_email: string | null
+          donor_id: string | null
+          donor_ip_address: unknown | null
           donor_name: string | null
+          donor_user_agent: string | null
           id: string
           is_anonymous: boolean | null
           message: string | null
+          net_amount: number | null
           payment_id: string | null
+          payment_method: string | null
           payment_status: string | null
+          processing_fee: number | null
+          rupantorpay_transaction_id: string | null
+          txn_id: string | null
         }
         Insert: {
           amount: number
           created_at?: string | null
           creator_id: string
           donor_email?: string | null
+          donor_id?: string | null
+          donor_ip_address?: unknown | null
           donor_name?: string | null
+          donor_user_agent?: string | null
           id?: string
           is_anonymous?: boolean | null
           message?: string | null
+          net_amount?: number | null
           payment_id?: string | null
+          payment_method?: string | null
           payment_status?: string | null
+          processing_fee?: number | null
+          rupantorpay_transaction_id?: string | null
+          txn_id?: string | null
         }
         Update: {
           amount?: number
           created_at?: string | null
           creator_id?: string
           donor_email?: string | null
+          donor_id?: string | null
+          donor_ip_address?: unknown | null
           donor_name?: string | null
+          donor_user_agent?: string | null
           id?: string
           is_anonymous?: boolean | null
           message?: string | null
+          net_amount?: number | null
           payment_id?: string | null
+          payment_method?: string | null
           payment_status?: string | null
+          processing_fee?: number | null
+          rupantorpay_transaction_id?: string | null
+          txn_id?: string | null
         }
         Relationships: [
           {
@@ -79,33 +103,120 @@ export type Database = {
           },
         ]
       }
-      subscriptions: {
+      payments: {
         Row: {
           amount: number
           created_at: string | null
-          expires_at: string
+          currency: string | null
+          gateway: string | null
+          gateway_response: Json | null
+          gateway_transaction_id: string | null
           id: string
+          payment_method: string | null
+          payment_type: string
+          reference_id: string | null
+          status: string | null
+          transaction_id: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          currency?: string | null
+          gateway?: string | null
+          gateway_response?: Json | null
+          gateway_transaction_id?: string | null
+          id?: string
+          payment_method?: string | null
+          payment_type: string
+          reference_id?: string | null
+          status?: string | null
+          transaction_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          currency?: string | null
+          gateway?: string | null
+          gateway_response?: Json | null
+          gateway_transaction_id?: string | null
+          id?: string
+          payment_method?: string | null
+          payment_type?: string
+          reference_id?: string | null
+          status?: string | null
+          transaction_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          amount: number
+          auto_renewal: boolean | null
+          cancelled_at: string | null
+          created_at: string | null
+          expires_at: string
+          failed_payment_count: number | null
+          gateway_transaction_id: string | null
+          id: string
+          is_active: boolean | null
+          last_payment_attempt: string | null
+          last_payment_txn_id: string | null
+          next_billing_date: string | null
+          paid_until: string | null
+          payment_gateway: string | null
           payment_id: string | null
+          payment_method: string | null
+          rupantorpay_transaction_id: string | null
           starts_at: string | null
           status: string | null
           user_id: string
         }
         Insert: {
           amount?: number
+          auto_renewal?: boolean | null
+          cancelled_at?: string | null
           created_at?: string | null
           expires_at: string
+          failed_payment_count?: number | null
+          gateway_transaction_id?: string | null
           id?: string
+          is_active?: boolean | null
+          last_payment_attempt?: string | null
+          last_payment_txn_id?: string | null
+          next_billing_date?: string | null
+          paid_until?: string | null
+          payment_gateway?: string | null
           payment_id?: string | null
+          payment_method?: string | null
+          rupantorpay_transaction_id?: string | null
           starts_at?: string | null
           status?: string | null
           user_id: string
         }
         Update: {
           amount?: number
+          auto_renewal?: boolean | null
+          cancelled_at?: string | null
           created_at?: string | null
           expires_at?: string
+          failed_payment_count?: number | null
+          gateway_transaction_id?: string | null
           id?: string
+          is_active?: boolean | null
+          last_payment_attempt?: string | null
+          last_payment_txn_id?: string | null
+          next_billing_date?: string | null
+          paid_until?: string | null
+          payment_gateway?: string | null
           payment_id?: string | null
+          payment_method?: string | null
+          rupantorpay_transaction_id?: string | null
           starts_at?: string | null
           status?: string | null
           user_id?: string
@@ -122,42 +233,54 @@ export type Database = {
       }
       users: {
         Row: {
+          avatar_url: string | null
           bio: string | null
           cover_image_url: string | null
           created_at: string | null
           current_amount: number | null
           display_name: string
+          email: string | null
           goal_amount: number | null
           id: string
           profile_image_url: string | null
+          role: string | null
+          socials: Json | null
           subscription_expires_at: string | null
           subscription_status: string | null
           updated_at: string | null
           username: string
         }
         Insert: {
+          avatar_url?: string | null
           bio?: string | null
           cover_image_url?: string | null
           created_at?: string | null
           current_amount?: number | null
           display_name: string
+          email?: string | null
           goal_amount?: number | null
           id: string
           profile_image_url?: string | null
+          role?: string | null
+          socials?: Json | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           updated_at?: string | null
           username: string
         }
         Update: {
+          avatar_url?: string | null
           bio?: string | null
           cover_image_url?: string | null
           created_at?: string | null
           current_amount?: number | null
           display_name?: string
+          email?: string | null
           goal_amount?: number | null
           id?: string
           profile_image_url?: string | null
+          role?: string | null
+          socials?: Json | null
           subscription_expires_at?: string | null
           subscription_status?: string | null
           updated_at?: string | null
@@ -173,6 +296,7 @@ export type Database = {
           bank_name: string
           created_at: string | null
           id: string
+          method: string | null
           processed_at: string | null
           status: string | null
           user_id: string
@@ -184,6 +308,7 @@ export type Database = {
           bank_name: string
           created_at?: string | null
           id?: string
+          method?: string | null
           processed_at?: string | null
           status?: string | null
           user_id: string
@@ -195,6 +320,7 @@ export type Database = {
           bank_name?: string
           created_at?: string | null
           id?: string
+          method?: string | null
           processed_at?: string | null
           status?: string | null
           user_id?: string
@@ -214,7 +340,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      activate_creator_subscription: {
+        Args: {
+          p_amount: number
+          p_gateway?: string
+          p_payment_id: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      increment_creator_balance: {
+        Args: { amount: number; creator_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
